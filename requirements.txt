@@ -1,0 +1,6 @@
+# General dependencies
+Flask
+
+# Test runner/testing utils
+nose
+coverage
