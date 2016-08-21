@@ -1,5 +1,6 @@
 # General dependencies
 Flask
+requests
 
 # Test runner/testing utils
 nose

@@ -1,6 +1,11 @@
-from exceptionservice import app
-from flask import Flask, session, redirect, url_for, escape, request
+import configparser
 import logging
+
+import requests
+from exceptionservice import app
+from flask import request, jsonify
+from urllib.parse import urljoin
+
 
 """
 This is the base-class with views
@@ -10,25 +15,41 @@ __author__ = 'Miel Donkers <miel.donkers@codecentric.nl>'
 
 log = logging.getLogger(__name__)
 
+config = configparser.ConfigParser()
+config.read("config.ini")
+
+JIRA_URI = urljoin(config['JIRA']['url'], '/rest/api/latest/search')
+JIRA_USER_PASSWD = (config['JIRA']['user'], config['JIRA']['passwd'])
+JIRA_FIELDS = ['id', 'key', 'created', 'status', 'labels', 'summary', 'description']
 
 
-# def request_handler(parsed_question):
-#     handler_method = get_handler_method_for_question(parsed_question)
-#     print_unknown = handler_method == fallback_handler
-#
-#     if print_unknown:
-#         print("Received Question: {}".format(parsed_question))
-#         print("Using handler method: {}".format(str(handler_method)))
-#
-#     response = str(handler_method(parsed_question))
-#     print("Response: {}".format(response))
-#     return response
+def add_jira_exception(json_data):
+    log.info('Received json data: {}'.format(json_data))
+    pass
 
 
-@app.route('/')
+def show_all_open_issues():
+    headers = {'Content-Type': 'application/json'}
+    # Make sure character case for Jira keywords is correct
+    query = {'jql': 'project=HAMISTIRF&status in (Open,"In Progress",Reopened)&issuetype=Bevinding',
+             'fields': JIRA_FIELDS}
+
+    resp = requests.post(JIRA_URI,
+                         json=query,
+                         headers=headers,
+                         auth=JIRA_USER_PASSWD)
+
+    if resp.status_code != 200:
+        # This means something went wrong.
+        return 'Could not get open Jira issues, resp code; {}'.format(resp.status_code)
+
+    return resp.json()
+
+
+@app.route('/', methods=['GET', 'POST'])
 def receive_exception():
-    # log.info('Received request; ' + request.get_json())
-    # q = request.args.get("q", "")
-    # parsed_question = parse_request_string(q)
-    return "Hello World!"
-
+    if request.method == 'POST' and request.is_json:
+        add_jira_exception(request.get_json())
+        return 'Jira issue added', 201, {}
+    else:
+        return jsonify(show_all_open_issues())
