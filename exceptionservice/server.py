@@ -1,4 +1,5 @@
 import logging
+from copy import deepcopy
 from urllib.parse import urljoin
 
 import requests
@@ -21,8 +22,8 @@ _JIRA_FIELDS = ['id', 'key', 'created', 'status', 'labels', 'summary', 'descript
 _CONTENT_JSON_HEADER = {'Content-Type': 'application/json'}
 
 
-def add_to_jira(summary, stacktrace):
-    description = 'Test issue {{noformat}}{}{{noformat}}'.format(stacktrace)
+def add_to_jira(summary, details, stacktrace):
+    description = '{}\n\nDetails:\n{}\n\nStacktrace:\n{{noformat}}{}{{noformat}}'.format(summary, details, stacktrace)
     issue = {'project': {'key': 'HAMISTIRF'}, 'summary': summary, 'description': description,
              'issuetype': {'name': 'Bevinding'}, 'labels': ['Beheer']}
     fields = {'fields': issue}
@@ -37,13 +38,29 @@ def add_to_jira(summary, stacktrace):
 
 
 def add_jira_exception(json_data):
-    log.info('Received json data: {}'.format(json_data))
-    result = add_to_jira('Test issue', 'NPE: blabla stacktrace')
+    log.info('Received json data: {}'.format(json.dumps(json_data)))
+    result = add_to_jira(get_summary_from_message(json_data), create_details_string_from_json(json_data), get_stacktrace_from_message(json_data))
 
     if result[0] == 201:
         return 'Jira issue added: {}'.format(result[1]['key']), 201, {}
     else:
         return 'Could not create new Jira issue, resp code; {}'.format(result[0])
+
+
+def create_details_string_from_json(json_data):
+    dict_without_stacktrace = deepcopy(json_data)
+    del dict_without_stacktrace['stacktrace']
+
+    return json.dumps(dict_without_stacktrace)
+
+
+def get_summary_from_message(json_data):
+    return json_data['stacktrace'][0]['message']
+
+
+def get_stacktrace_from_message(json_data):
+
+    return json_data['stacktrace']
 
 
 def show_all_open_issues():
