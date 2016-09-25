@@ -1,4 +1,5 @@
 import logging
+import io
 from copy import deepcopy
 from urllib.parse import urljoin
 
@@ -58,7 +59,11 @@ def create_details_string_from_json(json_data):
     dict_without_stacktrace = deepcopy(json_data)
     del dict_without_stacktrace['stacktrace']
 
-    return json.dumps(dict_without_stacktrace)
+    output = ''
+    for key, value in dict_without_stacktrace.items():
+        output += '  {}: {}\n'.format(key, value)
+
+    return output
 
 
 def get_summary_from_message(json_data):
@@ -66,13 +71,22 @@ def get_summary_from_message(json_data):
 
 
 def get_stacktrace_from_message(json_data):
+    traces = json_data['stacktrace']
+    output = io.StringIO()
+    for trace in traces:
+        output.write('Caused by: {}\n'.format(trace['message']))
+        for line in trace['stacktrace']:
+            output.write('\t{}.{}:{}\n'.format(line['className'], line['methodName'], line['lineNumber']))
 
-    return json_data['stacktrace']
+    result = output.getvalue()
+    output.close()
+    return result
 
 
 def add_to_jira(summary, details, stacktrace):
+    title = 'HaMIS Exception: ' + summary
     description = '{}\n\nDetails:\n{}\n\nStacktrace:\n{{noformat}}{}{{noformat}}'.format(summary, details, stacktrace)
-    issue = {'project': {'key': 'HAMISTIRF'}, 'summary': summary, 'description': description,
+    issue = {'project': {'key': 'HAMISTIRF'}, 'summary': title, 'description': description,
              'issuetype': {'name': 'Bevinding'}, 'labels': ['Beheer']}
     fields = {'fields': issue}
 
