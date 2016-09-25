@@ -22,19 +22,26 @@ _JIRA_FIELDS = ['id', 'key', 'created', 'status', 'labels', 'summary', 'descript
 _CONTENT_JSON_HEADER = {'Content-Type': 'application/json'}
 
 
-def add_to_jira(summary, details, stacktrace):
-    description = '{}\n\nDetails:\n{}\n\nStacktrace:\n{{noformat}}{}{{noformat}}'.format(summary, details, stacktrace)
-    issue = {'project': {'key': 'HAMISTIRF'}, 'summary': summary, 'description': description,
-             'issuetype': {'name': 'Bevinding'}, 'labels': ['Beheer']}
-    fields = {'fields': issue}
+@app.route('/', methods=['GET', 'POST'])
+def receive_exception():
+    if request.method == 'POST' and request.is_json:
+        return add_jira_exception(request.get_json())
+    else:
+        return jsonify(show_all_open_issues())
 
-    log.info('Sending:\n{}'.format(json.dumps(fields)))
 
-    resp = requests.post(_JIRA_URI_CREATE,
-                         json=fields,
+def show_all_open_issues():
+    query = {'jql': 'project=HAMISTIRF&status in (Open,"In Progress",Reopened)&issuetype=Bevinding',
+             'fields': _JIRA_FIELDS}
+    resp = requests.post(_JIRA_URI_SEARCH,
+                         json=query,
                          headers=_CONTENT_JSON_HEADER,
                          auth=_JIRA_USER_PASSWD)
-    return resp.status_code, resp.json() if resp.status_code == 201 else None
+
+    if resp.status_code != 200:
+        return 'Could not get open Jira issues, resp code; {}'.format(resp.status_code)
+
+    return resp.json()
 
 
 def add_jira_exception(json_data):
@@ -63,23 +70,16 @@ def get_stacktrace_from_message(json_data):
     return json_data['stacktrace']
 
 
-def show_all_open_issues():
-    query = {'jql': 'project=HAMISTIRF&status in (Open,"In Progress",Reopened)&issuetype=Bevinding',
-             'fields': _JIRA_FIELDS}
-    resp = requests.post(_JIRA_URI_SEARCH,
-                         json=query,
+def add_to_jira(summary, details, stacktrace):
+    description = '{}\n\nDetails:\n{}\n\nStacktrace:\n{{noformat}}{}{{noformat}}'.format(summary, details, stacktrace)
+    issue = {'project': {'key': 'HAMISTIRF'}, 'summary': summary, 'description': description,
+             'issuetype': {'name': 'Bevinding'}, 'labels': ['Beheer']}
+    fields = {'fields': issue}
+
+    log.info('Sending:\n{}'.format(json.dumps(fields)))
+
+    resp = requests.post(_JIRA_URI_CREATE,
+                         json=fields,
                          headers=_CONTENT_JSON_HEADER,
                          auth=_JIRA_USER_PASSWD)
-
-    if resp.status_code != 200:
-        return 'Could not get open Jira issues, resp code; {}'.format(resp.status_code)
-
-    return resp.json()
-
-
-@app.route('/', methods=['GET', 'POST'])
-def receive_exception():
-    if request.method == 'POST' and request.is_json:
-        return add_jira_exception(request.get_json())
-    else:
-        return jsonify(show_all_open_issues())
+    return resp.status_code, resp.json() if resp.status_code == 201 else None
