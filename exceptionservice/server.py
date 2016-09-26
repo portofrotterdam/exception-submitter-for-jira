@@ -67,7 +67,9 @@ def create_details_string_from_json(json_data):
 
 
 def get_summary_from_message(json_data):
-    return json_data['stacktrace'][0]['message']
+    # Get the original exception, which is the last in the list
+    stacks = json_data['stacktrace']
+    return stacks[len(stacks) - 1]['message']
 
 
 def get_stacktrace_from_message(json_data):
@@ -76,7 +78,8 @@ def get_stacktrace_from_message(json_data):
     for trace in traces:
         output.write('Caused by: {}\n'.format(trace['message']))
         for line in trace['stacktrace']:
-            output.write('\t{}.{}:{}\n'.format(line['className'], line['methodName'], line['lineNumber']))
+            if not line['nativeMethod']:  # Filter out native Java methods
+                output.write('\tat {}.{}:{}\n'.format(line['className'], line['methodName'], line['lineNumber']))
 
     result = output.getvalue()
     output.close()
