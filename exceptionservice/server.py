@@ -76,17 +76,10 @@ def add_jira_exception(json_data):
 
 def determine_if_duplicate(json_data):
     exception_summary = get_summary_from_message(json_data)
-    query = {'jql': 'project=HAMISTIRF&issuetype=Bevinding&summary ~ ' + exception_summary, 'fields': _JIRA_FIELDS}
-    resp = requests.post(_JIRA_URI_SEARCH,
-                         json=query,
-                         headers=_CONTENT_JSON_HEADER,
-                         auth=_JIRA_USER_PASSWD)
-
-    if resp.status_code != 200:
-        raise InternalError('Could not query Jira issues, cancel processing issue. Resp code; {}'.format(resp.status_code))
+    issue_list = find_existing_jira_issues(exception_summary)
 
     new_stacktrace = get_stacktrace_from_message(json_data)
-    for issue in resp.json()['issues']:
+    for issue in issue_list:
         issue_stacktrace = get_stacktrace_from_issue(issue)
         s = SequenceMatcher(lambda x: x == ' ' or x == '\n' or x == '\t',
                             new_stacktrace,
@@ -98,6 +91,24 @@ def determine_if_duplicate(json_data):
             return True, issue['key']
 
     return False, ''
+
+
+def find_existing_jira_issues(exception_summary, start_at=0):
+    query = {'jql': 'project=HAMISTIRF&issuetype=Bevinding&summary ~ ' + exception_summary,
+             'startAt': str(start_at),
+             'fields': _JIRA_FIELDS}
+    resp = requests.post(_JIRA_URI_SEARCH,
+                         json=query,
+                         headers=_CONTENT_JSON_HEADER,
+                         auth=_JIRA_USER_PASSWD)
+    if resp.status_code != 200:
+        raise InternalError('Could not query Jira issues, cancel processing issue. Resp code; {}'.format(resp.status_code))
+
+    max_results = resp.json()['maxResults']
+    total_results = resp.json()['total']
+    issue_list = find_existing_jira_issues(exception_summary, start_at + max_results) if total_results > start_at + max_results else list()
+
+    return issue_list + resp.json()['issues']
 
 
 def get_stacktrace_from_issue(issue):
