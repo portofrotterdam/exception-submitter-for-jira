@@ -27,12 +27,27 @@ _CONTENT_JSON_HEADER = {'Content-Type': 'application/json'}
 REGEX_CAUSED_BY = re.compile(r'\W*caused\W+by', re.IGNORECASE)
 
 
+class InternalError(Exception):
+    """Exception raised for all internal errors.
+
+    Attributes:
+        message -- explanation of the error
+    """
+
+    def __init__(self, message):
+        self.message = message
+
+
 @app.route('/', methods=['GET', 'POST'])
 def receive_exception():
-    if request.method == 'POST' and request.is_json:
-        return add_jira_exception(request.get_json())
-    else:
-        return jsonify(show_all_open_issues())
+    try:
+        if request.method == 'POST' and request.is_json:
+            return add_jira_exception(request.get_json())
+        else:
+            return jsonify(show_all_open_issues())
+    except InternalError as err:
+        log.error('Error during processing:', exc_info=err)
+        return 'Error during processing; \n\t{}'.format(err), 500, {}
 
 
 def show_all_open_issues():
@@ -44,7 +59,7 @@ def show_all_open_issues():
                          auth=_JIRA_USER_PASSWD)
 
     if resp.status_code != 200:
-        return 'Could not get open Jira issues, resp code; {}'.format(resp.status_code)
+        raise InternalError('Could not get open Jira issues, resp code; {}'.format(resp.status_code))
 
     return resp.json()
 
@@ -56,10 +71,7 @@ def add_jira_exception(json_data):
         return 'Jira issue already exists: {}'.format(is_duplicate[1])
 
     result = add_to_jira(get_summary_from_message(json_data), create_details_string_from_json(json_data), get_stacktrace_from_message(json_data))
-    if result[0] == 201:
-        return 'Jira issue added: {}'.format(result[1]['key']), 201, {}
-    else:
-        return 'Could not create new Jira issue, resp code; {}'.format(result[0])
+    return 'Jira issue added: {}'.format(result['key']), 201, {}
 
 
 def determine_if_duplicate(json_data):
@@ -71,7 +83,7 @@ def determine_if_duplicate(json_data):
                          auth=_JIRA_USER_PASSWD)
 
     if resp.status_code != 200:
-        return True, 'Could not query Jira issues, cancel processing issue. Resp code; {}'.format(resp.status_code)
+        raise InternalError('Could not query Jira issues, cancel processing issue. Resp code; {}'.format(resp.status_code))
 
     new_stacktrace = get_stacktrace_from_message(json_data)
     for issue in resp.json()['issues']:
@@ -160,4 +172,7 @@ def add_to_jira(summary, details, stacktrace):
                          json=fields,
                          headers=_CONTENT_JSON_HEADER,
                          auth=_JIRA_USER_PASSWD)
-    return resp.status_code, resp.json() if resp.status_code == 201 else None
+    if resp.status_code != 201:
+        raise InternalError('Could not create new Jira issue, resp code; {}'.format(resp.status_code))
+
+    return resp.json()
