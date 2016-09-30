@@ -163,7 +163,7 @@ def get_stacktrace_from_message(json_data):
         output.write('Caused by: {}\n'.format(trace['message']))
         for line in trace['stacktrace']:
             if not line['nativeMethod']:  # Filter out native Java methods
-                output.write('\tat {}.{}:{}\n'.format(line['className'], line['methodName'], line['lineNumber']))
+                output.write('\tat {}.{}({}:{})\n'.format(line['className'], line['methodName'], line['fileName'], line['lineNumber']))
 
     result = output.getvalue()
     output.close()
