@@ -3,3 +3,13 @@ This REST service will receive exceptions (stack traces) for which new issues in
 
 install:
   - pip3 install -r requirements.txt
+
+## Docker build and run
+Building container:
+
+    docker build -t exception-submitter .
+
+Running container:
+
+    docker run -d -p 3000:3000 --name exception-submitter exception-submitter
+
