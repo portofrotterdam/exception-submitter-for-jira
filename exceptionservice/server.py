@@ -1,5 +1,5 @@
-import logging
 import io
+import logging
 import re
 from copy import deepcopy
 from difflib import SequenceMatcher
@@ -19,10 +19,11 @@ __author__ = 'Miel Donkers <miel.donkers@codecentric.nl>'
 log = logging.getLogger(__name__)
 
 _JIRA_URI_SEARCH = urljoin(JIRA_URI, '/rest/api/latest/search')
-_JIRA_URI_CREATE = urljoin(JIRA_URI, '/rest/api/latest/issue')
+_JIRA_URI_CREATE_UPDATE = urljoin(JIRA_URI, '/rest/api/latest/issue')
 _JIRA_USER_PASSWD = (JIRA_USER, JIRA_PASSWD)
-_JIRA_FIELDS = ['id', 'key', 'created', 'status', 'labels', 'summary', 'description']
+_JIRA_FIELDS = ['id', 'key', 'created', 'status', 'labels', 'summary', 'description', 'environment']
 _CONTENT_JSON_HEADER = {'Content-Type': 'application/json'}
+_JIRA_TRANSITION_REOPEN_ID = '3'
 
 REGEX_CAUSED_BY = re.compile(r'\W*caused\W+by', re.IGNORECASE)
 
@@ -68,10 +69,15 @@ def add_jira_exception(json_data):
     log.info('Received json data: {}'.format(json.dumps(json_data)))
     is_duplicate = determine_if_duplicate(json_data)
     if is_duplicate[0]:
-        return 'Jira issue already exists: {}'.format(is_duplicate[1])
+        update_to_jira(is_duplicate[1], is_duplicate[3], is_issue_closed(is_duplicate[2]))
+        return 'Jira issue already exists, updated: {}'.format(is_duplicate[1])
 
     result = add_to_jira(get_summary_from_message(json_data), create_details_string_from_json(json_data), get_stacktrace_from_message(json_data))
     return 'Jira issue added: {}'.format(result['key']), 201, {}
+
+
+def is_issue_closed(status):
+    return status.lower() == 'closed' or status.lower() == 'resolved'
 
 
 def determine_if_duplicate(json_data):
@@ -88,7 +94,7 @@ def determine_if_duplicate(json_data):
         match_ratio = s.ratio() if s.real_quick_ratio() > 0.6 else 0
         if match_ratio > 0.95 and matches_exception_throw_location(new_stacktrace, issue_stacktrace):
             log.info('\nMatch ratio: {} for stacktrace:\n{}'.format(match_ratio, issue_stacktrace))
-            return True, issue['key']
+            return True, issue['key'], issue['fields']['status']['name'], issue['fields']['environment']
 
     return False, ''
 
@@ -179,7 +185,7 @@ def add_to_jira(summary, details, stacktrace):
 
     log.info('Sending:\n{}'.format(json.dumps(fields)))
 
-    resp = requests.post(_JIRA_URI_CREATE,
+    resp = requests.post(_JIRA_URI_CREATE_UPDATE,
                          json=fields,
                          headers=_CONTENT_JSON_HEADER,
                          auth=_JIRA_USER_PASSWD)
@@ -187,3 +193,25 @@ def add_to_jira(summary, details, stacktrace):
         raise InternalError('Could not create new Jira issue, resp code; {}'.format(resp.status_code))
 
     return resp.json()
+
+
+def update_to_jira(issue_id, environment, do_status_transition):
+    updated_fields = {'environment': [{'set': environment}]}
+    fields = {'update': updated_fields}
+
+    log.info('Sending:\n{}'.format(json.dumps(fields)))
+    resp = requests.put(urljoin(_JIRA_URI_CREATE_UPDATE + '/', issue_id),
+                        json=fields,
+                        headers=_CONTENT_JSON_HEADER,
+                        auth=_JIRA_USER_PASSWD)
+
+    if resp.status_code != 204:
+        raise InternalError('Could not update existing Jira issue, resp code; {}'.format(resp.status_code))
+
+    if do_status_transition:
+        log.info('Update issue status to: {}'.format(_JIRA_TRANSITION_REOPEN_ID))
+        resp = requests.post(urljoin(_JIRA_URI_CREATE_UPDATE + '/', issue_id + '/transitions'),
+                             json={'transition': {'id': _JIRA_TRANSITION_REOPEN_ID}},
+                             headers=_CONTENT_JSON_HEADER,
+                             auth=_JIRA_USER_PASSWD)
+        log.debug('Transition response: ' + resp.text)
