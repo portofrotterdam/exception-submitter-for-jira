@@ -2,6 +2,7 @@ import io
 import logging
 import re
 from copy import deepcopy
+from datetime import datetime
 from difflib import SequenceMatcher
 from urllib.parse import urljoin
 
@@ -26,6 +27,7 @@ _CONTENT_JSON_HEADER = {'Content-Type': 'application/json'}
 _JIRA_TRANSITION_REOPEN_ID = '3'
 
 REGEX_CAUSED_BY = re.compile(r'\W*caused\W+by', re.IGNORECASE)
+REGEX_COUNT = re.compile(r'.*count:\s+(\d+)', re.IGNORECASE)
 
 
 class InternalError(Exception):
@@ -69,7 +71,7 @@ def add_jira_exception(json_data):
     log.info('Received json data: {}'.format(json.dumps(json_data)))
     is_duplicate = determine_if_duplicate(json_data)
     if is_duplicate[0]:
-        update_to_jira(is_duplicate[1], is_duplicate[3], is_issue_closed(is_duplicate[2]))
+        update_to_jira(is_duplicate[1], calculate_issue_occurrence_count(is_duplicate[3]), is_issue_closed(is_duplicate[2]))
         return 'Jira issue already exists, updated: {}'.format(is_duplicate[1])
 
     result = add_to_jira(get_summary_from_message(json_data), create_details_string_from_json(json_data), get_stacktrace_from_message(json_data))
@@ -78,6 +80,17 @@ def add_jira_exception(json_data):
 
 def is_issue_closed(status):
     return status.lower() == 'closed' or status.lower() == 'resolved'
+
+
+def calculate_issue_occurrence_count(existing_count):
+    count = 1
+
+    if existing_count is not None and len(existing_count) > 0:
+        match = REGEX_COUNT.match(existing_count)
+        if match:
+            count = int(match.group(1)) + 1
+
+    return 'Count: {}\nLast: {}'.format(count, datetime.now())
 
 
 def determine_if_duplicate(json_data):
