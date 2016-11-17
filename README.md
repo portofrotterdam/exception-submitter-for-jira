@@ -13,3 +13,6 @@ Running container:
 
     docker run -d -p 3000:3000 --name exception-submitter exception-submitter
 
+## Docker Repo
+Automatic builds: [https://hub.docker.com/r/miel/exception-submitter-for-jira/](https://hub.docker.com/r/miel/exception-submitter-for-jira/)
+
