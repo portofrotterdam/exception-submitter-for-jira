@@ -1,15 +1,16 @@
 import io
 import logging
 import re
+import requests
+from codecs import *
 from copy import deepcopy
 from datetime import datetime
 from difflib import SequenceMatcher
-from urllib.parse import urljoin
+from flask import request, jsonify, json
+from urllib.parse import *
 
-import requests
 from exceptionservice import app
 from exceptionservice.config import *
-from flask import request, jsonify, json
 
 """
 This is the base-class with views
@@ -112,8 +113,12 @@ def determine_if_duplicate(json_data):
     return False, ''
 
 
+def sanitize_jql_query(raw_jql):
+    return "project=HAMISTIRF&issuetype=Bevinding&summary ~ '%s'" % raw_jql
+
+
 def find_existing_jira_issues(exception_summary, start_at=0):
-    query = {'jql': 'project=HAMISTIRF&issuetype=Bevinding&summary ~ ' + exception_summary,
+    query = {'jql': sanitize_jql_query(exception_summary),
              'startAt': str(start_at),
              'fields': _JIRA_FIELDS}
     resp = requests.post(_JIRA_URI_SEARCH,

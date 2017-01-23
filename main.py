@@ -1,5 +1,7 @@
 import logging
 
+from exceptionservice.config import *
+
 __author__ = 'Miel Donkers <miel.donkers@codecentric.nl>'
 
 """
@@ -28,4 +30,9 @@ _init_log()
 
 if __name__ == '__main__':
     from exceptionservice import app
-    app.run(host=HOST, port=PORT, debug=True)
+
+    if HTTPS_ENABLED:
+        log.info('HTTPS enabled, using cert file \'{}\' and key file \'{}\''.format(HTTPS_CERT, HTTPS_KEY))
+        app.run(host=HOST, port=PORT, debug=True, ssl_context=(HTTPS_CERT, HTTPS_KEY))
+    else:
+        app.run(host=HOST, port=PORT, debug=True)
