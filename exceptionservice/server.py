@@ -1,15 +1,16 @@
 import io
 import logging
 import re
+import requests
+from codecs import *
 from copy import deepcopy
 from datetime import datetime
 from difflib import SequenceMatcher
-from urllib.parse import urljoin
+from flask import request, jsonify, json
+from urllib.parse import *
 
-import requests
 from exceptionservice import app
 from exceptionservice.config import *
-from flask import request, jsonify, json
 
 """
 This is the base-class with views
@@ -54,7 +55,7 @@ def receive_exception():
 
 
 def show_all_open_issues():
-    query = {'jql': 'project=HAMISTIRF&status in (Open,"In Progress",Reopened)&issuetype=Bevinding',
+    query = {'jql': 'project=%s&status in (Open,"In Progress",Reopened)&issuetype=Bevinding' % JIRA_PROJECT,
              'fields': _JIRA_FIELDS}
     resp = requests.post(_JIRA_URI_SEARCH,
                          json=query,
@@ -112,8 +113,12 @@ def determine_if_duplicate(json_data):
     return False, ''
 
 
+def sanitize_jql_query(raw_jql):
+    return "project=%s&issuetype=Bevinding&summary ~ '%s'" % (JIRA_PROJECT, raw_jql)
+
+
 def find_existing_jira_issues(exception_summary, start_at=0):
-    query = {'jql': 'project=HAMISTIRF&issuetype=Bevinding&summary ~ ' + exception_summary,
+    query = {'jql': sanitize_jql_query(exception_summary),
              'startAt': str(start_at),
              'fields': _JIRA_FIELDS}
     resp = requests.post(_JIRA_URI_SEARCH,
@@ -190,9 +195,9 @@ def get_stacktrace_from_message(json_data):
 
 
 def add_to_jira(summary, details, stacktrace):
-    title = 'HaMIS Exception: ' + summary
+    title = '%s: %s' % (JIRA_ISSUE_TITLE, summary)
     description = '{}\n\nDetails:\n{}\n\nStacktrace:\n{{noformat}}{}{{noformat}}'.format(summary, details, stacktrace)
-    issue = {'project': {'key': 'HAMISTIRF'}, 'summary': title, 'description': description,
+    issue = {'project': {'key': '%s' % JIRA_PROJECT}, 'summary': title, 'description': description,
              'issuetype': {'name': 'Bevinding'}, 'labels': ['Beheer']}
     fields = {'fields': issue}
 
