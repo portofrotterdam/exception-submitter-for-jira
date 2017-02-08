@@ -12,6 +12,9 @@ from urllib.parse import *
 from exceptionservice import app
 from exceptionservice.config import *
 
+MAX_SUMMARY_LENGTH = 255
+BLACKLISTED_CHARACTERS = "+-,?|*/%^$#@[]()&"  # as per JQL spec + some reverse engineering
+
 """
 This is the base-class with views
 """
@@ -55,7 +58,7 @@ def receive_exception():
 
 
 def show_all_open_issues():
-    query = {'jql': 'project=%s&status in (Open,"In Progress",Reopened)&issuetype=Bevinding' % JIRA_PROJECT,
+    query = {'jql': 'project={}&status in (Open,"In Progress",Reopened)&issuetype=Bevinding'.format(JIRA_PROJECT),
              'fields': _JIRA_FIELDS}
     resp = requests.post(_JIRA_URI_SEARCH,
                          json=query,
@@ -63,7 +66,7 @@ def show_all_open_issues():
                          auth=_JIRA_USER_PASSWD)
 
     if resp.status_code != 200:
-        raise InternalError('Could not get open Jira issues, resp code; {}'.format(resp.status_code))
+        raise InternalError('Could not get open Jira issues. HTTP response code {} : {}'.format(resp.status_code, resp.content))
 
     return resp.json()
 
@@ -113,12 +116,38 @@ def determine_if_duplicate(json_data):
     return False, ''
 
 
-def sanitize_jql_query(raw_jql):
-    return "project=%s&issuetype=Bevinding&summary ~ '%s'" % (JIRA_PROJECT, raw_jql)
+def sanitize_jql_query(raw):
+    # certain characters are not allowed by JQL
+    sanitized = filter_out_blacklisted_characters(raw)
+
+    # trim unnecessary whitespaces; '        ' to ' '
+    sanitized = trim_whitespace(sanitized)
+
+    # cap the summary field to the allowed maximum
+    sanitized = trim_summary_length(sanitized)
+
+    return sanitized
+
+
+def trim_summary_length(input):
+    trim_length = MAX_SUMMARY_LENGTH - len(JIRA_ISSUE_TITLE) - 2
+    return input[:trim_length] if len(input) > trim_length else input
+
+
+def filter_out_blacklisted_characters(input):
+    sanitized = ""
+    for c in input:
+        if c not in BLACKLISTED_CHARACTERS:
+            sanitized += c
+    return sanitized
+
+
+def trim_whitespace(input):
+    return re.sub('\s+', ' ', input).strip()
 
 
 def find_existing_jira_issues(exception_summary, start_at=0):
-    query = {'jql': sanitize_jql_query(exception_summary),
+    query = {'jql': "project={}&issuetype=Bevinding&summary ~ '{}'".format(JIRA_PROJECT, sanitize_jql_query(exception_summary)),
              'startAt': str(start_at),
              'fields': _JIRA_FIELDS}
     resp = requests.post(_JIRA_URI_SEARCH,
@@ -126,7 +155,7 @@ def find_existing_jira_issues(exception_summary, start_at=0):
                          headers=_CONTENT_JSON_HEADER,
                          auth=_JIRA_USER_PASSWD)
     if resp.status_code != 200:
-        raise InternalError('Could not query Jira issues, cancel processing issue. Resp code; {}'.format(resp.status_code))
+        raise InternalError('Could not query Jira issues, cancel processing issue. HTTP response code {} : {}'.format(resp.status_code, resp.content))
 
     max_results = resp.json()['maxResults']
     total_results = resp.json()['total']
@@ -195,9 +224,10 @@ def get_stacktrace_from_message(json_data):
 
 
 def add_to_jira(summary, details, stacktrace):
-    title = '%s: %s' % (JIRA_ISSUE_TITLE, summary)
+    summary = sanitize_jql_query(summary)
+    title = '{}: {}'.format(JIRA_ISSUE_TITLE, summary)
     description = '{}\n\nDetails:\n{}\n\nStacktrace:\n{{noformat}}{}{{noformat}}'.format(summary, details, stacktrace)
-    issue = {'project': {'key': '%s' % JIRA_PROJECT}, 'summary': title, 'description': description,
+    issue = {'project': {'key': '{}'.format(JIRA_PROJECT)}, 'summary': title, 'description': description,
              'issuetype': {'name': 'Bevinding'}, 'labels': ['Beheer']}
     fields = {'fields': issue}
 
@@ -208,7 +238,7 @@ def add_to_jira(summary, details, stacktrace):
                          headers=_CONTENT_JSON_HEADER,
                          auth=_JIRA_USER_PASSWD)
     if resp.status_code != 201:
-        raise InternalError('Could not create new Jira issue, resp code; {}'.format(resp.status_code))
+        raise InternalError("Could not create new Jira issue. HTTP response code {} : {}".format(resp.status_code, resp.content))
 
     return resp.json()
 
@@ -224,7 +254,7 @@ def update_to_jira(issue_id, environment, do_status_transition):
                         auth=_JIRA_USER_PASSWD)
 
     if resp.status_code != 204:
-        raise InternalError('Could not update existing Jira issue, resp code; {}'.format(resp.status_code))
+        raise InternalError('Could not update existing Jira issue. HTTP response code {} : {}'.format(resp.status_code, resp.content))
 
     if do_status_transition:
         log.info('Update issue status to: {}'.format(_JIRA_TRANSITION_REOPEN_ID))
