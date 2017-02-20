@@ -13,6 +13,7 @@ from exceptionservice import app
 from exceptionservice.config import *
 
 MAX_SUMMARY_LENGTH = 255
+MAX_DESCRIPTION_LENGTH = 32767
 BLACKLISTED_CHARACTERS = "+-,?|*/%^$#@[]()&"  # as per JQL spec + some reverse engineering
 
 """
@@ -124,14 +125,14 @@ def sanitize_jql_query(raw):
     sanitized = trim_whitespace(sanitized)
 
     # cap the summary field to the allowed maximum
-    sanitized = trim_summary_length(sanitized)
+    max_length = MAX_SUMMARY_LENGTH - len(JIRA_ISSUE_TITLE) - 2
+    sanitized = trim_length(sanitized, max_length)
 
     return sanitized
 
 
-def trim_summary_length(input):
-    trim_length = MAX_SUMMARY_LENGTH - len(JIRA_ISSUE_TITLE) - 2
-    return input[:trim_length] if len(input) > trim_length else input
+def trim_length(input, max_length):
+    return input[:max_length] if len(input) > max_length else input
 
 
 def filter_out_blacklisted_characters(input):
@@ -227,7 +228,7 @@ def add_to_jira(summary, details, stacktrace):
     summary = sanitize_jql_query(summary)
     title = '{}: {}'.format(JIRA_ISSUE_TITLE, summary)
     description = '{}\n\nDetails:\n{}\n\nStacktrace:\n{{noformat}}{}{{noformat}}'.format(summary, details, stacktrace)
-    issue = {'project': {'key': '{}'.format(JIRA_PROJECT)}, 'summary': title, 'description': description,
+    issue = {'project': {'key': '{}'.format(JIRA_PROJECT)}, 'summary': title, 'description': trim_length(description, MAX_DESCRIPTION_LENGTH),
              'issuetype': {'name': 'Bevinding'}, 'labels': ['Beheer']}
     fields = {'fields': issue}
 
