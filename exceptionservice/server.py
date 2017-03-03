@@ -13,7 +13,7 @@ from exceptionservice import app
 from exceptionservice.config import *
 
 MAX_SUMMARY_LENGTH = 255
-MAX_DESCRIPTION_LENGTH = 32767
+MAX_DESCRIPTION_LENGTH = 32767 - 767  # Max chars but trim only the stacktrace so leave enough room for other text
 BLACKLISTED_CHARACTERS = "+-,?|*/%^$#@[]()&"  # as per JQL spec + some reverse engineering
 
 """
@@ -117,7 +117,7 @@ def determine_if_duplicate(json_data):
     return False, ''
 
 
-def sanitize_jql_query(raw):
+def sanitize_jql_summary(raw, trim_for_query = False):
     # certain characters are not allowed by JQL
     sanitized = filter_out_blacklisted_characters(raw)
 
@@ -127,6 +127,10 @@ def sanitize_jql_query(raw):
     # cap the summary field to the allowed maximum
     max_length = MAX_SUMMARY_LENGTH - len(JIRA_ISSUE_TITLE) - 2
     sanitized = trim_length(sanitized, max_length)
+
+    if trim_for_query and sanitized.count(':') >= 2:
+        # For querying, trim after the second colon, otherwise it might contain too much rubbish
+        sanitized = sanitized[:sanitized.find(':', sanitized.find(':') + 1)]
 
     return sanitized
 
@@ -148,7 +152,7 @@ def trim_whitespace(input):
 
 
 def find_existing_jira_issues(exception_summary, start_at=0):
-    query = {'jql': "project={}&issuetype=Bevinding&summary ~ '{}'".format(JIRA_PROJECT, sanitize_jql_query(exception_summary)),
+    query = {'jql': "project={}&issuetype=Bevinding&summary ~ '{}'".format(JIRA_PROJECT, sanitize_jql_summary(exception_summary, True)),
              'startAt': str(start_at),
              'fields': _JIRA_FIELDS}
     resp = requests.post(_JIRA_URI_SEARCH,
@@ -225,10 +229,11 @@ def get_stacktrace_from_message(json_data):
 
 
 def add_to_jira(summary, details, stacktrace):
-    summary = sanitize_jql_query(summary)
+    summary = sanitize_jql_summary(summary)
     title = '{}: {}'.format(JIRA_ISSUE_TITLE, summary)
-    description = '{}\n\nDetails:\n{}\n\nStacktrace:\n{{noformat}}{}{{noformat}}'.format(summary, details, stacktrace)
-    issue = {'project': {'key': '{}'.format(JIRA_PROJECT)}, 'summary': title, 'description': trim_length(description, MAX_DESCRIPTION_LENGTH),
+    description = '{}\n\nDetails:\n{}\n\nStacktrace:\n{{noformat}}{}{{noformat}}'\
+        .format(summary, details, trim_length(stacktrace, MAX_DESCRIPTION_LENGTH))
+    issue = {'project': {'key': '{}'.format(JIRA_PROJECT)}, 'summary': title, 'description': description,
              'issuetype': {'name': 'Bevinding'}, 'labels': ['Beheer']}
     fields = {'fields': issue}
 
