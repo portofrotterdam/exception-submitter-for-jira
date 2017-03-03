@@ -105,12 +105,13 @@ def determine_if_duplicate(json_data):
     new_stacktrace = get_stacktrace_from_message(json_data)
     for issue in issue_list:
         issue_stacktrace = get_stacktrace_from_issue(issue)
+        new_trimmed_stacktrace = new_stacktrace[:len(issue_stacktrace)]  # Trim to same length as Jira issue might have been trimmed
         s = SequenceMatcher(lambda x: x == ' ' or x == '\n' or x == '\t',
-                            new_stacktrace,
+                            new_trimmed_stacktrace,
                             issue_stacktrace)
 
         match_ratio = s.ratio() if s.real_quick_ratio() > 0.6 else 0
-        if match_ratio > 0.95 and matches_exception_throw_location(new_stacktrace, issue_stacktrace):
+        if match_ratio > 0.95 and matches_exception_throw_location(new_trimmed_stacktrace, issue_stacktrace):
             log.info('\nMatch ratio: {} for stacktrace:\n{}'.format(match_ratio, issue_stacktrace))
             return True, issue['key'], issue['fields']['status']['name'], issue['fields']['environment']
 
