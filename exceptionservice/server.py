@@ -1,3 +1,4 @@
+import base64
 import io
 import logging
 import re
@@ -74,13 +75,30 @@ def show_all_open_issues():
 
 def add_jira_exception(json_data):
     log.info('Received json data: {}'.format(json.dumps(json_data)))
+
     is_duplicate = determine_if_duplicate(json_data)
+
     if is_duplicate[0]:
-        update_to_jira(is_duplicate[1], calculate_issue_occurrence_count(is_duplicate[3]), is_issue_closed(is_duplicate[2]))
-        return 'Jira issue already exists, updated: {}'.format(is_duplicate[1])
+        issue_id = is_duplicate[1]
+        update_to_jira(issue_id, calculate_issue_occurrence_count(is_duplicate[3]), is_issue_closed(is_duplicate[2]))
+        update_issue_with_attachments(json_data, issue_id)
+        return 'Jira issue already exists, updated: {}'.format(issue_id)
 
     result = add_to_jira(get_summary_from_message(json_data), create_details_string_from_json(json_data), get_stacktrace_from_message(json_data))
-    return 'Jira issue added: {}'.format(result['key']), 201, {}
+    issue_id = result['key']
+    update_issue_with_attachments(json_data, issue_id)
+    return 'Jira issue added: {}'.format(issue_id), 201, {}
+
+
+def update_issue_with_attachments(json_data, issue_id):
+    add_attachment(get_stacktrace_from_message(json_data), 'text', 'stacktrace.txt', issue_id)
+
+    if 'screenshots' not in json_data:
+        # no screenshots, we're done here
+        return
+
+    for b64_encoded_screenshot in json_data['screenshots']:
+        add_attachment(base64.b64decode(b64_encoded_screenshot), 'binary', 'screenshot.jpg', issue_id)
 
 
 def is_issue_closed(status):
@@ -118,7 +136,7 @@ def determine_if_duplicate(json_data):
     return False, ''
 
 
-def sanitize_jql_summary(raw, trim_for_query = False):
+def sanitize_jql_summary(raw, trim_for_query=False):
     # certain characters are not allowed by JQL
     sanitized = filter_out_blacklisted_characters(raw)
 
@@ -199,11 +217,15 @@ def first_line_caused_by_from_printed_stacktrace(printed_stacktrace):
 
 
 def create_details_string_from_json(json_data):
-    dict_without_stacktrace = deepcopy(json_data)
-    del dict_without_stacktrace['stacktrace']
+    dict_without_attachments = deepcopy(json_data)
+
+    del dict_without_attachments['stacktrace']
+
+    if 'screenshots' in dict_without_attachments:
+        del dict_without_attachments['screenshots']
 
     output = ''
-    for key, value in dict_without_stacktrace.items():
+    for key, value in dict_without_attachments.items():
         output += '  {}: {}\n'.format(key, value)
 
     return output
@@ -232,8 +254,7 @@ def get_stacktrace_from_message(json_data):
 def add_to_jira(summary, details, stacktrace):
     summary = sanitize_jql_summary(summary)
     title = '{}: {}'.format(JIRA_ISSUE_TITLE, summary)
-    description = '{}\n\nDetails:\n{}\n\nStacktrace:\n{{noformat}}{}{{noformat}}'\
-        .format(summary, details, trim_length(stacktrace, MAX_DESCRIPTION_LENGTH))
+    description = '{}\n\nDetails:\n{}\n\nStacktrace:\n{{noformat}}{}{{noformat}}'.format(summary, details, trim_length(stacktrace, MAX_DESCRIPTION_LENGTH))
     issue = {'project': {'key': '{}'.format(JIRA_PROJECT)}, 'summary': title, 'description': description,
              'issuetype': {'name': 'Bevinding'}, 'labels': ['Beheer']}
     fields = {'fields': issue}
@@ -245,7 +266,7 @@ def add_to_jira(summary, details, stacktrace):
                          headers=_CONTENT_JSON_HEADER,
                          auth=_JIRA_USER_PASSWD)
     if resp.status_code != 201:
-        raise InternalError("Could not create new Jira issue. HTTP response code {} : {}".format(resp.status_code, resp.content))
+        raise InternalError('Could not create new Jira issue. HTTP response code {} : {}'.format(resp.status_code, resp.content))
 
     return resp.json()
 
@@ -270,3 +291,28 @@ def update_to_jira(issue_id, environment, do_status_transition):
                              headers=_CONTENT_JSON_HEADER,
                              auth=_JIRA_USER_PASSWD)
         log.debug('Transition response: ' + resp.text)
+
+
+def add_attachment(attachment, type, filename, issue_id):
+    try:
+        # invoke stream method for provided type
+        files = {'file': (filename, get_stream_method(type)(attachment))}
+
+        url = urljoin(_JIRA_URI_CREATE_UPDATE + '/', issue_id + '/attachments')
+        log.info('Posting attachment to {}'.format(url))
+
+        response = requests.post(url,
+                                 headers={'X-Atlassian-Token': 'no-check'},
+                                 auth=_JIRA_USER_PASSWD,
+                                 files=files)
+
+        log.info('Response for posting attachment to {}: {}'.format(url, response))
+    except InternalError as error:
+        log.error('Error while adding attachment : {}'.format(error))
+
+
+def get_stream_method(type):
+    return {
+        'text': io.StringIO,
+        'binary': io.BytesIO,
+    }[type]
