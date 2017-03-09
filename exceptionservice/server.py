@@ -93,12 +93,12 @@ def add_jira_exception(json_data):
 def update_issue_with_attachments(json_data, issue_id):
     add_attachment(get_stacktrace_from_message(json_data), 'text', 'stacktrace.txt', issue_id)
 
-    if 'screenshots' not in json_data:
-        # no screenshots, we're done here
-        return
+    if 'logs' in json_data:
+        add_attachment(base64.b64decode(json_data['logs']), 'binary', 'logfiles.zip', issue_id)
 
-    for b64_encoded_screenshot in json_data['screenshots']:
-        add_attachment(base64.b64decode(b64_encoded_screenshot), 'binary', 'screenshot.jpg', issue_id)
+    if 'screenshots' in json_data:
+        for b64_encoded_screenshot in json_data['screenshots']:
+            add_attachment(base64.b64decode(b64_encoded_screenshot), 'binary', 'screenshot.jpg', issue_id)
 
 
 def is_issue_closed(status):
@@ -219,10 +219,14 @@ def first_line_caused_by_from_printed_stacktrace(printed_stacktrace):
 def create_details_string_from_json(json_data):
     dict_without_attachments = deepcopy(json_data)
 
-    del dict_without_attachments['stacktrace']
+    if 'stacktrace' in dict_without_attachments:
+        del dict_without_attachments['stacktrace']
 
     if 'screenshots' in dict_without_attachments:
         del dict_without_attachments['screenshots']
+
+    if 'logs' in dict_without_attachments:
+        del dict_without_attachments['logs']
 
     output = ''
     for key, value in dict_without_attachments.items():
