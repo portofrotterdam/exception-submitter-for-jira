@@ -74,7 +74,7 @@ def show_all_open_issues():
 
 
 def add_jira_exception(json_data):
-    log.info('Received json data: {}'.format(json.dumps(json_data)))
+    log_received_json_without_binary(json_data)
 
     is_duplicate = determine_if_duplicate(json_data)
 
@@ -88,6 +88,18 @@ def add_jira_exception(json_data):
     issue_id = result['key']
     update_issue_with_attachments(json_data, issue_id)
     return 'Jira issue added: {}'.format(issue_id), 201, {}
+
+
+def log_received_json_without_binary(json_data):
+    dict_without_binary = deepcopy(json_data)
+
+    if 'screenshots' in dict_without_binary:
+        del dict_without_binary['screenshots']
+
+    if 'logs' in dict_without_binary:
+        del dict_without_binary['logs']
+
+    log.info('\n\n----------\nReceived json data: {}'.format(json.dumps(dict_without_binary)))
 
 
 def update_issue_with_attachments(json_data, issue_id):
@@ -207,7 +219,7 @@ def matches_exception_throw_location(new_stacktrace, issue_stacktrace):
 def first_line_caused_by_from_printed_stacktrace(printed_stacktrace):
     lines = printed_stacktrace.splitlines()
     loc_last_causedby_line = -1
-    for i in range(len(lines)):
+    for i in range(len(lines) - 1):
         if REGEX_CAUSED_BY.match(lines[i]):
             loc_last_causedby_line = i
 
