@@ -17,3 +17,6 @@ Running container:
 ## Docker Repo
 Automatic builds: [https://hub.docker.com/r/miel/exception-submitter-for-jira/](https://hub.docker.com/r/miel/exception-submitter-for-jira/)
 
+# Credits
+Credits to Serkan Demirel for fixing issues and adding stuff like posting images and log files to Jira
+

@@ -22,6 +22,7 @@ This is the base-class with views
 """
 
 __author__ = 'Miel Donkers <miel.donkers@codecentric.nl>'
+__credits = ['Serkan Demirel <serkan@blackbuilt.nl>']
 
 log = logging.getLogger(__name__)
 
