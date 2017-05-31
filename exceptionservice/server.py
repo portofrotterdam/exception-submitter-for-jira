@@ -15,7 +15,7 @@ from exceptionservice.config import *
 
 MAX_SUMMARY_LENGTH = 255
 MAX_DESCRIPTION_LENGTH = 32767 - 767  # Max chars but trim only the stacktrace so leave enough room for other text
-BLACKLISTED_CHARACTERS = "+-,?|*/%^$#@[]()&"  # as per JQL spec + some reverse engineering
+BLACKLISTED_CHARACTERS = "'\"+-,?|*/%^$#@[]()&"  # as per JQL spec + some reverse engineering
 
 """
 This is the base-class with views
