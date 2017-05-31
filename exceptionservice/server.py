@@ -142,7 +142,7 @@ def determine_if_duplicate(json_data):
                             issue_stacktrace)
 
         match_ratio = s.ratio() if s.real_quick_ratio() > 0.6 else 0
-        if match_ratio > 0.95 and matches_exception_throw_location(new_trimmed_stacktrace, issue_stacktrace):
+        if len(issue_stacktrace) > 0 and match_ratio > 0.95 and matches_exception_throw_location(new_trimmed_stacktrace, issue_stacktrace):
             log.info('\nMatch ratio: {} for stacktrace:\n{}'.format(match_ratio, issue_stacktrace))
             return True, issue['key'], issue['fields']['status']['name'], issue['fields']['environment']
 
@@ -220,7 +220,7 @@ def matches_exception_throw_location(new_stacktrace, issue_stacktrace):
 def first_line_caused_by_from_printed_stacktrace(printed_stacktrace):
     lines = printed_stacktrace.splitlines()
     loc_last_causedby_line = -1
-    for i in range(len(lines) - 1):
+    for i in range(len(lines)):
         if REGEX_CAUSED_BY.match(lines[i]):
             loc_last_causedby_line = i
 
