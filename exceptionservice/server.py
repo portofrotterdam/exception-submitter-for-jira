@@ -15,13 +15,14 @@ from exceptionservice.config import *
 
 MAX_SUMMARY_LENGTH = 255
 MAX_DESCRIPTION_LENGTH = 32767 - 767  # Max chars but trim only the stacktrace so leave enough room for other text
-BLACKLISTED_CHARACTERS = "+-,?|*/%^$#@[]()&"  # as per JQL spec + some reverse engineering
+BLACKLISTED_CHARACTERS = "'\"+-,?|*/%^$#@[]()&"  # as per JQL spec + some reverse engineering
 
 """
 This is the base-class with views
 """
 
 __author__ = 'Miel Donkers <miel.donkers@codecentric.nl>'
+__credits = ['Serkan Demirel <serkan@blackbuilt.nl>']
 
 log = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ def show_all_open_issues():
 
 
 def add_jira_exception(json_data):
-    log.info('Received json data: {}'.format(json.dumps(json_data)))
+    log_received_json_without_binary(json_data)
 
     is_duplicate = determine_if_duplicate(json_data)
 
@@ -88,6 +89,18 @@ def add_jira_exception(json_data):
     issue_id = result['key']
     update_issue_with_attachments(json_data, issue_id)
     return 'Jira issue added: {}'.format(issue_id), 201, {}
+
+
+def log_received_json_without_binary(json_data):
+    dict_without_binary = deepcopy(json_data)
+
+    if 'screenshots' in dict_without_binary:
+        del dict_without_binary['screenshots']
+
+    if 'logs' in dict_without_binary:
+        del dict_without_binary['logs']
+
+    log.info('\n\n----------\nReceived json data: {}'.format(json.dumps(dict_without_binary)))
 
 
 def update_issue_with_attachments(json_data, issue_id):
@@ -129,7 +142,7 @@ def determine_if_duplicate(json_data):
                             issue_stacktrace)
 
         match_ratio = s.ratio() if s.real_quick_ratio() > 0.6 else 0
-        if match_ratio > 0.95 and matches_exception_throw_location(new_trimmed_stacktrace, issue_stacktrace):
+        if len(issue_stacktrace) > 0 and match_ratio > 0.95 and matches_exception_throw_location(new_trimmed_stacktrace, issue_stacktrace):
             log.info('\nMatch ratio: {} for stacktrace:\n{}'.format(match_ratio, issue_stacktrace))
             return True, issue['key'], issue['fields']['status']['name'], issue['fields']['environment']
 
