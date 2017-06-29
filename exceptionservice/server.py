@@ -163,14 +163,19 @@ def determine_if_duplicate(json_data):
         match_ratio = s.ratio() if s.real_quick_ratio() > 0.6 else 0
         if len(issue_stacktrace) > 0 and match_ratio > 0.7 and matches_exception_throw_location(new_trimmed_stacktrace, issue_stacktrace):
             log.info('\nMatch ratio: {} for stacktrace:\n{}'.format(match_ratio, issue_stacktrace))
+            latest_fix_version = get_latest_fix_version(issue['fields']['fixVersions'])['name'] \
+                if get_latest_fix_version(issue['fields']['fixVersions']) is not None \
+                else "None"
             return True, \
                    issue['key'], issue['fields']['status']['name'], \
                    issue['fields']['environment'], \
-                   get_latest_fix_version(issue['fields']['fixVersions'])['name']
+                   latest_fix_version
     return False, ''
 
 
 def get_latest_fix_version(fix_versions):
+    if not fix_versions:
+        return None
     return sorted(fix_versions, key=itemgetter('name'), reverse=True)[0]
 
 
