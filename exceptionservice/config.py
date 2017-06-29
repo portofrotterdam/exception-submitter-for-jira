@@ -14,7 +14,7 @@ JIRA_USER = config.get('JIRA', 'user', fallback=os.getenv('JIRA_USER'))
 JIRA_PASSWD = config.get('JIRA', 'passwd', fallback=os.getenv('JIRA_PASSWD'))
 JIRA_PROJECT = config.get('JIRA', 'project', fallback=os.getenv('JIRA_PROJECT'))
 JIRA_ISSUE_TITLE = config.get('JIRA', 'issue_title', fallback=os.getenv('JIRA_ISSUE_TITLE'))
-JIRA_BOARD_ID = config.get('JIRA', 'board_id')
+JIRA_BOARD_ID = config.get('JIRA', 'board_id', fallback=os.getenv('JIRA_BOARD_ID'))
 
 if JIRA_URI is None or JIRA_USER is None or JIRA_PASSWD is None:
     log.warning(
