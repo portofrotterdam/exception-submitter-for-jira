@@ -8,6 +8,7 @@ from copy import deepcopy
 from datetime import datetime
 from difflib import SequenceMatcher
 from flask import request, jsonify, json
+from operator import itemgetter
 from urllib.parse import *
 
 from exceptionservice import app
@@ -28,8 +29,9 @@ log = logging.getLogger(__name__)
 
 _JIRA_URI_SEARCH = urljoin(JIRA_URI, '/rest/api/latest/search')
 _JIRA_URI_CREATE_UPDATE = urljoin(JIRA_URI, '/rest/api/latest/issue')
+_JIRA_URI_CURRENT_SPRINT = urljoin(JIRA_URI, 'rest/agile/1.0/board/{}/sprint?state=active'.format(JIRA_BOARD_ID))
 _JIRA_USER_PASSWD = (JIRA_USER, JIRA_PASSWD)
-_JIRA_FIELDS = ['id', 'key', 'created', 'status', 'labels', 'summary', 'description', 'environment']
+_JIRA_FIELDS = ['id', 'key', 'created', 'status', 'labels', 'summary', 'description', 'environment', 'fixVersions']
 _CONTENT_JSON_HEADER = {'Content-Type': 'application/json'}
 _JIRA_TRANSITION_REOPEN_ID = '3'
 
@@ -74,6 +76,15 @@ def show_all_open_issues():
     return resp.json()
 
 
+def get_current_sprint():
+    resp = requests.get(_JIRA_URI_CURRENT_SPRINT,
+                        headers=_CONTENT_JSON_HEADER,
+                        auth=_JIRA_USER_PASSWD)
+    current_sprint = resp.json()['values'][0]['name']  # there is only 1 active sprint
+    log.info("Current sprint {}".format(current_sprint))
+    return current_sprint
+
+
 def add_jira_exception(json_data):
     log_received_json_without_binary(json_data)
 
@@ -81,7 +92,9 @@ def add_jira_exception(json_data):
 
     if is_duplicate[0]:
         issue_id = is_duplicate[1]
-        update_to_jira(issue_id, calculate_issue_occurrence_count(is_duplicate[3]), is_issue_closed(is_duplicate[2]))
+        fixed_in_sprint = is_duplicate[4]
+        should_reopen = should_reopen_if_closed(is_issue_closed(is_duplicate[2]), fixed_in_sprint)
+        update_to_jira(issue_id, calculate_issue_occurrence_count(is_duplicate[3]), should_reopen)
         update_issue_with_attachments(json_data, issue_id)
         return 'Jira issue already exists, updated: {}'.format(issue_id)
 
@@ -89,6 +102,12 @@ def add_jira_exception(json_data):
     issue_id = result['key']
     update_issue_with_attachments(json_data, issue_id)
     return 'Jira issue added: {}'.format(issue_id), 201, {}
+
+
+def should_reopen_if_closed(issue_is_closed, fixed_in_sprint):
+    current_sprint = get_current_sprint()
+    is_closed_in_current_sprint = current_sprint == fixed_in_sprint
+    return issue_is_closed and not is_closed_in_current_sprint
 
 
 def log_received_json_without_binary(json_data):
@@ -144,9 +163,15 @@ def determine_if_duplicate(json_data):
         match_ratio = s.ratio() if s.real_quick_ratio() > 0.6 else 0
         if len(issue_stacktrace) > 0 and match_ratio > 0.7 and matches_exception_throw_location(new_trimmed_stacktrace, issue_stacktrace):
             log.info('\nMatch ratio: {} for stacktrace:\n{}'.format(match_ratio, issue_stacktrace))
-            return True, issue['key'], issue['fields']['status']['name'], issue['fields']['environment']
-
+            return True, \
+                   issue['key'], issue['fields']['status']['name'], \
+                   issue['fields']['environment'], \
+                   get_latest_fix_version(issue['fields']['fixVersions'])['name']
     return False, ''
+
+
+def get_latest_fix_version(fix_versions):
+    return sorted(fix_versions, key=itemgetter('name'), reverse=True)[0]
 
 
 def sanitize_jql_summary(raw, trim_for_query=False):
