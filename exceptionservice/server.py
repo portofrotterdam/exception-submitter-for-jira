@@ -96,11 +96,13 @@ def add_jira_exception(json_data):
         should_reopen = should_reopen_if_closed(is_issue_closed(is_duplicate[2]), fixed_in_sprint)
         update_to_jira(issue_id, calculate_issue_occurrence_count(is_duplicate[3]), should_reopen)
         update_issue_with_attachments(json_data, issue_id)
+        update_issue_with_user_details(json_data, issue_id)
         return 'Jira issue already exists, updated: {}'.format(issue_id)
 
     result = add_to_jira(get_summary_from_message(json_data), create_details_string_from_json(json_data), get_stacktrace_from_message(json_data))
     issue_id = result['key']
     update_issue_with_attachments(json_data, issue_id)
+    update_issue_with_user_details(json_data, issue_id)
     return 'Jira issue added: {}'.format(issue_id), 201, {}
 
 
@@ -133,6 +135,32 @@ def update_issue_with_attachments(json_data, issue_id):
     if 'screenshots' in json_data:
         for b64_encoded_screenshot in json_data['screenshots']:
             add_attachment(base64.b64decode(b64_encoded_screenshot), 'binary', '{}_screenshot.jpg'.format(username), issue_id)
+
+
+def update_issue_with_user_details(json_data, issue_id):
+    try:
+
+        url = urljoin(_JIRA_URI_CREATE_UPDATE + '/', issue_id + '/comment')
+        log.info('Adding comment to {}'.format(url))
+
+        body_content = {'body': '*This issue has occurred again*\r\n'
+                                '----\r\n'
+                                'User: {}\r\n'
+                                'Host: {}\r\n'
+                                'HaMIS version: {}\r\n'
+                                'Java Version: {}\r\n'.format(json_data['user'],
+                                                              json_data['jnlpHost'],
+                                                              json_data['hamisVersion'],
+                                                              json_data['javaVersion'])}
+
+        response = requests.post(url,
+                                 headers={'X-Atlassian-Token': 'no-check'},
+                                 auth=_JIRA_USER_PASSWD,
+                                 json=body_content)
+
+        log.info('Response for adding comment to url {} : {}'.format(url, response))
+    except InternalError as error:
+        log.error('Error while adding comment to issue {} : {}'.format(issue_id, error))
 
 
 def is_issue_closed(status):
