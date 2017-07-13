@@ -123,14 +123,16 @@ def log_received_json_without_binary(json_data):
 
 
 def update_issue_with_attachments(json_data, issue_id):
-    add_attachment(get_stacktrace_from_message(json_data), 'text', 'stacktrace.txt', issue_id)
+    username = json_data['user']
+
+    add_attachment(get_stacktrace_from_message(json_data), 'text', '{}_stacktrace.txt'.format(username), issue_id)
 
     if 'logs' in json_data:
-        add_attachment(base64.b64decode(json_data['logs']), 'binary', 'logfiles.zip', issue_id)
+        add_attachment(base64.b64decode(json_data['logs']), 'binary', '{}_logfiles.zip'.format(username), issue_id)
 
     if 'screenshots' in json_data:
         for b64_encoded_screenshot in json_data['screenshots']:
-            add_attachment(base64.b64decode(b64_encoded_screenshot), 'binary', 'screenshot.jpg', issue_id)
+            add_attachment(base64.b64decode(b64_encoded_screenshot), 'binary', '{}_screenshot.jpg'.format(username), issue_id)
 
 
 def is_issue_closed(status):
