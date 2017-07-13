@@ -183,6 +183,9 @@ def sanitize_jql_summary(raw, trim_for_query=False):
     # quick hack, we need fuzzy matching
     raw = re.sub(r"\{(.*)\}?", "", raw)
 
+    # quick hack, we need fuzzy matching
+    raw = re.sub(r"(: Time stamp.*)", "", raw)
+
     # certain characters are not allowed by JQL
     sanitized = filter_out_blacklisted_characters(raw)
 
