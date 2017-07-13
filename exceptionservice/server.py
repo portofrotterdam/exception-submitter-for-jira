@@ -180,11 +180,10 @@ def get_latest_fix_version(fix_versions):
 
 
 def sanitize_jql_summary(raw, trim_for_query=False):
-    # quick hack, we need fuzzy matching
-    raw = re.sub(r"(IsLoadingMessage{.*)", "", raw)  # todo: move to external resource
-
-    # quick hack, we need fuzzy matching
+    raw = re.sub(r"(IsLoadingMessage{.*)", "", raw)
     raw = re.sub(r"(: Time stamp.*)", "", raw)
+    raw = re.sub(r"(uid=\d+)", "", raw)
+    raw = re.sub(r"(: \d+).*(: \d+)", "", raw)
 
     # certain characters are not allowed by JQL
     sanitized = filter_out_blacklisted_characters(raw)
