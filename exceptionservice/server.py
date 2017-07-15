@@ -151,7 +151,7 @@ def update_issue_with_user_details(json_data, issue_id):
                                 'Java Version: {}\r\n'
                                 '[^{}_stacktrace.txt]\r\n'
                                 '[^{}_screenshot.jpg]\r\n'
-                                '[^{}_logfiles.zip]\r\n'.format(username,
+                                '[^{}_logfiles.zip]'.format(username,
                                                                 json_data['jnlpHost'],
                                                                 json_data['hamisVersion'],
                                                                 json_data['javaVersion'],
