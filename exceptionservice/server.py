@@ -102,7 +102,6 @@ def add_jira_exception(json_data):
     result = add_to_jira(get_summary_from_message(json_data), create_details_string_from_json(json_data), get_stacktrace_from_message(json_data))
     issue_id = result['key']
     update_issue_with_attachments(json_data, issue_id)
-    update_issue_with_user_details(json_data, issue_id)
     return 'Jira issue added: {}'.format(issue_id), 201, {}
 
 
@@ -249,6 +248,7 @@ def trim_whitespace(input):
 
 
 def find_existing_jira_issues(exception_summary, start_at=0):
+    log.info('Searching duplicates for exception with title {}'.format(exception_summary))
     query = {'jql': "project={}&issuetype=Bevinding&summary ~ '{}'".format(JIRA_PROJECT, sanitize_jql_summary(exception_summary, True)),
              'startAt': str(start_at),
              'fields': _JIRA_FIELDS}
@@ -262,7 +262,7 @@ def find_existing_jira_issues(exception_summary, start_at=0):
     max_results = resp.json()['maxResults']
     total_results = resp.json()['total']
     issue_list = find_existing_jira_issues(exception_summary, start_at + max_results) if total_results > start_at + max_results else list()
-
+    log.info('Found {} issues matching title {}'.format(len(issue_list), exception_summary))
     return issue_list + resp.json()['issues']
 
 
