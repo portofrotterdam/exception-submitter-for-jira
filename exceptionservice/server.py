@@ -142,15 +142,23 @@ def update_issue_with_user_details(json_data, issue_id):
         url = urljoin(_JIRA_URI_CREATE_UPDATE + '/', issue_id + '/comment')
         log.info('Adding comment to {}'.format(url))
 
+        username = json_data['user']
         body_content = {'body': '*This issue has occurred again*\r\n'
                                 '----\r\n'
                                 'User: {}\r\n'
                                 'Host: {}\r\n'
                                 'HaMIS version: {}\r\n'
-                                'Java Version: {}\r\n'.format(json_data['user'],
-                                                              json_data['jnlpHost'],
-                                                              json_data['hamisVersion'],
-                                                              json_data['javaVersion'])}
+                                'Java Version: {}\r\n'
+                                '[^{}_stacktrace.txt]\r\n'
+                                '[^{}_screenshot.jpg]\r\n'
+                                '[^{}_logfiles.zip]\r\n'.format(username,
+                                                                json_data['jnlpHost'],
+                                                                json_data['hamisVersion'],
+                                                                json_data['javaVersion'],
+                                                                username,
+                                                                username,
+                                                                username)
+                        }
 
         response = requests.post(url,
                                  headers={'X-Atlassian-Token': 'no-check'},
