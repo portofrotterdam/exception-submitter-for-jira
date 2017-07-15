@@ -251,6 +251,7 @@ def find_existing_jira_issues(exception_summary, start_at=0):
     log.info('Searching duplicates for exception with title {}'.format(exception_summary))
     query = {'jql': "project={}&issuetype=Bevinding&summary ~ '{}'".format(JIRA_PROJECT, sanitize_jql_summary(exception_summary, True)),
              'startAt': str(start_at),
+             'maxResults': 250,
              'fields': _JIRA_FIELDS}
     resp = requests.post(_JIRA_URI_SEARCH,
                          json=query,
