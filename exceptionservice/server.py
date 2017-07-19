@@ -148,7 +148,7 @@ def update_issue_with_user_details(json_data, issue_id):
                                 'User: {}\r\n'
                                 'Host: {}\r\n'
                                 'HaMIS version: {}\r\n'
-                                'Java Version: {}\r\n'
+                                'Java Version: {}\r\n\r\n'
                                 '[^{}_stacktrace.txt]\r\n'
                                 '[^{}_screenshot.jpg]\r\n'
                                 '[^{}_logfiles.zip]'.format(username,
@@ -198,8 +198,9 @@ def determine_if_duplicate(json_data):
                             issue_stacktrace)
 
         match_ratio = s.ratio() if s.real_quick_ratio() > 0.6 else 0
+
         if len(issue_stacktrace) > 0 and match_ratio > 0.7 and matches_exception_throw_location(new_trimmed_stacktrace, issue_stacktrace):
-            log.info('\nMatch ratio: {} for stacktrace:\n{}'.format(match_ratio, issue_stacktrace))
+            log.info('\n>> Match ratio: {} for stacktrace:\n{}'.format(match_ratio, issue_stacktrace))
             latest_fix_version = get_latest_fix_version(issue['fields']['fixVersions'])['name'] \
                 if get_latest_fix_version(issue['fields']['fixVersions']) is not None \
                 else "None"
@@ -207,6 +208,8 @@ def determine_if_duplicate(json_data):
                    issue['key'], issue['fields']['status']['name'], \
                    issue['fields']['environment'], \
                    latest_fix_version
+        else:
+            log.info('\n  Match ratio: {} for stacktrace:\n{}'.format(match_ratio, issue_stacktrace))
     return False, ''
 
 
@@ -271,7 +274,7 @@ def find_existing_jira_issues(exception_summary, start_at=0):
     max_results = resp.json()['maxResults']
     total_results = resp.json()['total']
     issue_list = find_existing_jira_issues(exception_summary, start_at + max_results) if total_results > start_at + max_results else list()
-    log.info('Found {} issues matching title {}'.format(len(issue_list), exception_summary))
+    log.info('Found {} issues matching title {}'.format(total_results, exception_summary))
     return issue_list + resp.json()['issues']
 
 
