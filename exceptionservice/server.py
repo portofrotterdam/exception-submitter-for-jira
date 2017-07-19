@@ -121,7 +121,8 @@ def log_received_json_without_binary(json_data):
     if 'logs' in dict_without_binary:
         del dict_without_binary['logs']
 
-    log.info('\n\n----------\nReceived json data: {}'.format(json.dumps(dict_without_binary)))
+    exception_summary = get_summary_from_message(json_data)
+    log.info('\n\n----------\nReceived exception with title \'{}\''.format(exception_summary))
 
 
 def update_issue_with_attachments(json_data, issue_id):
@@ -202,7 +203,7 @@ def determine_if_duplicate(json_data):
         match_ratio = s.ratio() if s.real_quick_ratio() > 0.6 else 0
 
         if len(issue_stacktrace) > 0 and match_ratio > 0.7:  # and matches_exception_throw_location(new_trimmed_stacktrace, issue_stacktrace):
-            log.info('\nMatch with Jira issue {}: ratio {}'.format(issue['key'], match_ratio))
+            log.info('Match with Jira issue {}: ratio {}'.format(issue['key'], match_ratio))
             latest_fix_version = get_latest_fix_version(issue['fields']['fixVersions'])['name'] \
                 if get_latest_fix_version(issue['fields']['fixVersions']) is not None \
                 else "None"
@@ -212,7 +213,7 @@ def determine_if_duplicate(json_data):
                    latest_fix_version, \
                    match_ratio
         else:
-            log.info('\nNo match with Jira issue {}: ratio {}'.format(issue['key'], match_ratio))
+            log.debug('No match with Jira issue {}: ratio {}'.format(issue['key'], match_ratio))
     return False, ''
 
 
@@ -262,7 +263,7 @@ def trim_whitespace(input):
 
 
 def find_existing_jira_issues(exception_summary, start_at=0):
-    log.info('Searching duplicates for exception with title {}'.format(exception_summary))
+    log.info('Searching duplicates for exception with title \'{}\''.format(exception_summary))
     query = {'jql': "project={}&issuetype=Bevinding&summary ~ '{}'".format(JIRA_PROJECT, sanitize_jql_summary(exception_summary, True)),
              'startAt': str(start_at),
              'maxResults': 250,
@@ -277,7 +278,7 @@ def find_existing_jira_issues(exception_summary, start_at=0):
     max_results = resp.json()['maxResults']
     total_results = resp.json()['total']
     issue_list = find_existing_jira_issues(exception_summary, start_at + max_results) if total_results > start_at + max_results else list()
-    log.info('Found {} issues matching title {}'.format(total_results, exception_summary))
+    log.info('Found {} issues matching title \'{}\''.format(total_results, exception_summary))
     return issue_list + resp.json()['issues']
 
 
