@@ -145,7 +145,7 @@ def update_issue_with_user_details(json_data, issue_id, match_ratio):
         log.info('Adding comment to {}'.format(url))
 
         username = json_data['user']
-        body_content = {'body': '*This issue has occurred again (match ratio {})*\r\n'
+        body_content = {'body': '*This issue has occurred again (match ratio {}%)*\r\n'
                                 '----\r\n'
                                 'User: {}\r\n'
                                 'Host: {}\r\n'
@@ -153,7 +153,7 @@ def update_issue_with_user_details(json_data, issue_id, match_ratio):
                                 'Java Version: {}\r\n\r\n'
                                 '[^{}_stacktrace.txt]\r\n'
                                 '[^{}_screenshot.jpg]\r\n'
-                                '[^{}_logfiles.zip]'.format(match_ratio,
+                                '[^{}_logfiles.zip]'.format(int(round(match_ratio * 100)),
                                                             username,
                                                             json_data['jnlpHost'],
                                                             json_data['hamisVersion'],
