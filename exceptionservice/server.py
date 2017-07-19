@@ -93,10 +93,11 @@ def add_jira_exception(json_data):
     if is_duplicate[0]:
         issue_id = is_duplicate[1]
         fixed_in_sprint = is_duplicate[4]
+        match_ratio = is_duplicate[5]
         should_reopen = should_reopen_if_closed(is_issue_closed(is_duplicate[2]), fixed_in_sprint)
         update_to_jira(issue_id, calculate_issue_occurrence_count(is_duplicate[3]), should_reopen)
         update_issue_with_attachments(json_data, issue_id)
-        update_issue_with_user_details(json_data, issue_id)
+        update_issue_with_user_details(json_data, issue_id, match_ratio)
         return 'Jira issue already exists, updated: {}'.format(issue_id)
 
     result = add_to_jira(get_summary_from_message(json_data), create_details_string_from_json(json_data), get_stacktrace_from_message(json_data))
@@ -136,14 +137,14 @@ def update_issue_with_attachments(json_data, issue_id):
             add_attachment(base64.b64decode(b64_encoded_screenshot), 'binary', '{}_screenshot.jpg'.format(username), issue_id)
 
 
-def update_issue_with_user_details(json_data, issue_id):
+def update_issue_with_user_details(json_data, issue_id, match_ratio):
     try:
 
         url = urljoin(_JIRA_URI_CREATE_UPDATE + '/', issue_id + '/comment')
         log.info('Adding comment to {}'.format(url))
 
         username = json_data['user']
-        body_content = {'body': '*This issue has occurred again*\r\n'
+        body_content = {'body': '*This issue has occurred again (match ratio {})*\r\n'
                                 '----\r\n'
                                 'User: {}\r\n'
                                 'Host: {}\r\n'
@@ -151,7 +152,8 @@ def update_issue_with_user_details(json_data, issue_id):
                                 'Java Version: {}\r\n\r\n'
                                 '[^{}_stacktrace.txt]\r\n'
                                 '[^{}_screenshot.jpg]\r\n'
-                                '[^{}_logfiles.zip]'.format(username,
+                                '[^{}_logfiles.zip]'.format(match_ratio,
+                                                            username,
                                                             json_data['jnlpHost'],
                                                             json_data['hamisVersion'],
                                                             json_data['javaVersion'],
@@ -199,17 +201,18 @@ def determine_if_duplicate(json_data):
 
         match_ratio = s.ratio() if s.real_quick_ratio() > 0.6 else 0
 
-        if len(issue_stacktrace) > 0 and match_ratio > 0.7 and matches_exception_throw_location(new_trimmed_stacktrace, issue_stacktrace):
-            log.info('\n>> Match ratio: {} for stacktrace:\n{}'.format(match_ratio, issue_stacktrace))
+        if len(issue_stacktrace) > 0 and match_ratio > 0.7:  # and matches_exception_throw_location(new_trimmed_stacktrace, issue_stacktrace):
+            log.info('\nMatch with Jira issue {}: ratio {}'.format(issue['key'], match_ratio))
             latest_fix_version = get_latest_fix_version(issue['fields']['fixVersions'])['name'] \
                 if get_latest_fix_version(issue['fields']['fixVersions']) is not None \
                 else "None"
             return True, \
                    issue['key'], issue['fields']['status']['name'], \
                    issue['fields']['environment'], \
-                   latest_fix_version
+                   latest_fix_version, \
+                   match_ratio
         else:
-            log.info('\n  Match ratio: {} for stacktrace:\n{}'.format(match_ratio, issue_stacktrace))
+            log.info('\nNo match with Jira issue {}: ratio {}'.format(issue['key'], match_ratio))
     return False, ''
 
 
