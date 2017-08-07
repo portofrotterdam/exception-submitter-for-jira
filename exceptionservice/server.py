@@ -94,7 +94,8 @@ def add_jira_exception(json_data):
         issue_id = is_duplicate[1]
         fixed_in_sprint = is_duplicate[4]
         match_ratio = is_duplicate[5]
-        should_reopen = should_reopen_if_closed(is_issue_closed(is_duplicate[2]), fixed_in_sprint)
+        force_do_not_reopen = is_duplicate[6]
+        should_reopen = should_reopen_if_closed(is_issue_closed(is_duplicate[2]), fixed_in_sprint, force_do_not_reopen)
         update_to_jira(issue_id, calculate_issue_occurrence_count(is_duplicate[3]), should_reopen)
         update_issue_with_attachments(json_data, issue_id)
         update_issue_with_user_details(json_data, issue_id, match_ratio)
@@ -106,7 +107,10 @@ def add_jira_exception(json_data):
     return 'Jira issue added: {}'.format(issue_id), 201, {}
 
 
-def should_reopen_if_closed(issue_is_closed, fixed_in_sprint):
+def should_reopen_if_closed(issue_is_closed, fixed_in_sprint, do_not_reopen_flag=False):
+    if do_not_reopen_flag:
+        log.info('Will not reopen since do_not_reopen flag is present')
+        return False
     current_sprint = get_current_sprint()
     is_closed_in_current_sprint = current_sprint == fixed_in_sprint
     return issue_is_closed and not is_closed_in_current_sprint
@@ -188,7 +192,7 @@ def calculate_issue_occurrence_count(existing_count):
     return 'Count: {}\nLast: {}'.format(count, datetime.now())
 
 
-def determine_if_duplicate(json_data):
+def determine_if_duplicate(json_data):  # todo: rename this method since it's doing something else than determining whether the issue is duplicate
     exception_summary = get_summary_from_message(json_data)
     issue_list = find_existing_jira_issues(exception_summary)
 
@@ -208,10 +212,12 @@ def determine_if_duplicate(json_data):
                 if get_latest_fix_version(issue['fields']['fixVersions']) is not None \
                 else "None"
             return True, \
-                   issue['key'], issue['fields']['status']['name'], \
+                   issue['key'], \
+                   issue['fields']['status']['name'], \
                    issue['fields']['environment'], \
                    latest_fix_version, \
-                   match_ratio
+                   match_ratio, \
+                   True if 'do_not_reopen' in issue['fields']['labels'] else False
         else:
             log.debug('No match with Jira issue {}: ratio {}'.format(issue['key'], match_ratio))
     return False, ''
@@ -228,6 +234,7 @@ def sanitize_jql_summary(raw, trim_for_query=False):
     raw = re.sub(r"(: Time stamp.*)", "", raw)
     raw = re.sub(r"(uid=\d+)", "", raw)
     raw = re.sub(r"(: \d+).*(: \d+)", "", raw)
+    raw = re.sub(r"(\d+)", "", raw)
 
     # certain characters are not allowed by JQL
     sanitized = filter_out_blacklisted_characters(raw)
