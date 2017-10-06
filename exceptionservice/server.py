@@ -88,6 +88,13 @@ def get_current_sprint():
 def add_jira_exception(json_data):
     log_received_json_without_binary(json_data)
 
+    if "manual_bug_report" in json_data['labels']:
+        log.info('Manual bug report.')
+        result = add_to_jira(get_summary_from_message(json_data), create_details_string_from_json(json_data), json_data['labels'], get_stacktrace_from_message(json_data), json_data['description'])
+        issue_id = result['key']
+        update_issue_with_attachments(json_data, issue_id)
+        return 'Jira issue added: {}'.format(issue_id), 201, {}
+
     is_duplicate = determine_if_duplicate(json_data)
 
     if is_duplicate[0]:
@@ -101,7 +108,7 @@ def add_jira_exception(json_data):
         update_issue_with_user_details(json_data, issue_id, match_ratio)
         return 'Jira issue already exists, updated: {}'.format(issue_id)
 
-    result = add_to_jira(get_summary_from_message(json_data), create_details_string_from_json(json_data), get_stacktrace_from_message(json_data))
+    result = add_to_jira(get_summary_from_message(json_data), create_details_string_from_json(json_data), json_data['labels'], get_stacktrace_from_message(json_data))
     issue_id = result['key']
     update_issue_with_attachments(json_data, issue_id)
     return 'Jira issue added: {}'.format(issue_id), 201, {}
@@ -337,6 +344,12 @@ def create_details_string_from_json(json_data):
 
 
 def get_summary_from_message(json_data):
+    if "manual_bug_report" in json_data['labels']:
+        log.info('Manual bug report.')
+        return json_data['title']
+
+    log.info('Automatic bug report.')
+
     # Get the original exception, which is the last in the list
     stacks = json_data['stacktrace']
     return stacks[len(stacks) - 1]['message']
@@ -356,12 +369,14 @@ def get_stacktrace_from_message(json_data):
     return result
 
 
-def add_to_jira(summary, details, stacktrace):
+def add_to_jira(summary, details, labels, stacktrace, description):
     summary = sanitize_jql_summary(summary)
     title = '{}: {}'.format(JIRA_ISSUE_TITLE, summary)
-    description = '{}\n\nDetails:\n{}\n\nStacktrace:\n{{noformat}}{}{{noformat}}'.format(summary, details, trim_length(stacktrace, MAX_DESCRIPTION_LENGTH))
+    if description is None:
+        description = '{}\n\nDetails:\n{}\n\nStacktrace:\n{{noformat}}{}{{noformat}}'.format(summary, details, trim_length(stacktrace, MAX_DESCRIPTION_LENGTH))
+
     issue = {'project': {'key': '{}'.format(JIRA_PROJECT)}, 'summary': title, 'description': description,
-             'issuetype': {'name': 'Bevinding'}, 'labels': ['Beheer']}
+             'issuetype': {'name': 'Bevinding'}, 'labels': labels}
     fields = {'fields': issue}
 
     log.info('Sending:\n{}'.format(json.dumps(fields)))
