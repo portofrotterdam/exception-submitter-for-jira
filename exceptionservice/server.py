@@ -338,7 +338,8 @@ def create_details_string_from_json(json_data):
 
     output = ''
     for key, value in dict_without_attachments.items():
-        output += '  {}: {}\n'.format(key, value)
+        if key not in ['title', "description", "labels"]:
+            output += '  {}: {}\n'.format(key, value)
 
     return output
 
@@ -374,6 +375,8 @@ def add_to_jira(summary, details, labels, stacktrace, description):
     title = '{}: {}'.format(JIRA_ISSUE_TITLE, summary)
     if description is None:
         description = '{}\n\nDetails:\n{}\n\nStacktrace:\n{{noformat}}{}{{noformat}}'.format(summary, details, trim_length(stacktrace, MAX_DESCRIPTION_LENGTH))
+    else:
+        description = '{}\n\n*Details:*\n{}'.format(description, details)
 
     issue = {'project': {'key': '{}'.format(JIRA_PROJECT)}, 'summary': title, 'description': description,
              'issuetype': {'name': 'Bevinding'}, 'labels': labels}
