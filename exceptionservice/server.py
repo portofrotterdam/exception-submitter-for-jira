@@ -372,10 +372,11 @@ def get_stacktrace_from_message(json_data):
 
 def add_to_jira(summary, details, labels, stacktrace, description):
     summary = sanitize_jql_summary(summary)
-    title = '{}: {}'.format(JIRA_ISSUE_TITLE, summary)
     if description is None:
+        title = '{}: {}'.format(JIRA_ISSUE_TITLE, summary)
         description = '{}\n\nDetails:\n{}\n\nStacktrace:\n{{noformat}}{}{{noformat}}'.format(summary, details, trim_length(stacktrace, MAX_DESCRIPTION_LENGTH))
     else:
+        title = summary
         description = '{}\n\n*Details:*\n{}'.format(description, details)
 
     issue = {'project': {'key': '{}'.format(JIRA_PROJECT)}, 'summary': title, 'description': description,
