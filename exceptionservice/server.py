@@ -80,9 +80,21 @@ def get_current_sprint():
     resp = requests.get(_JIRA_URI_CURRENT_SPRINT,
                         headers=_CONTENT_JSON_HEADER,
                         auth=_JIRA_USER_PASSWD)
+    log.info("============\n{}".format(resp))
     current_sprint = resp.json()['values'][0]['name']  # there is only 1 active sprint
     log.info("Current sprint {}".format(current_sprint))
     return current_sprint
+
+
+def create_custom_fields(json_data):
+    custom_fields = {}
+    for custom_field_id, data_field_name in CUSTOM_FIELD_MAPPINGS.items():
+        if data_field_name in json_data:
+            custom_fields[custom_field_id] = json_data[data_field_name]
+        else:
+            log.warning("Custom field '{}' not found in json data.".format(data_field_name))
+
+    return custom_fields
 
 
 def add_jira_exception(json_data):
@@ -90,7 +102,12 @@ def add_jira_exception(json_data):
 
     if "manual_bug_report" in json_data['labels']:
         log.info('Manual bug report.')
-        result = add_to_jira(get_summary_from_message(json_data), create_details_string_from_json(json_data), json_data['labels'], get_stacktrace_from_message(json_data), json_data['description'])
+        result = add_to_jira(get_summary_from_message(json_data),
+                             create_details_string_from_json(json_data),
+                             json_data['labels'],
+                             get_stacktrace_from_message(json_data),
+                             json_data['description'],
+                             create_custom_fields(json_data))
         issue_id = result['key']
         update_issue_with_attachments(json_data, issue_id)
         return 'Jira issue added: {}'.format(issue_id), 201, {}
@@ -108,7 +125,10 @@ def add_jira_exception(json_data):
         update_issue_with_user_details(json_data, issue_id, match_ratio)
         return 'Jira issue already exists, updated: {}'.format(issue_id)
 
-    result = add_to_jira(get_summary_from_message(json_data), create_details_string_from_json(json_data), json_data['labels'], get_stacktrace_from_message(json_data))
+    result = add_to_jira(get_summary_from_message(json_data),
+                         create_details_string_from_json(json_data),
+                         json_data['labels'],
+                         get_stacktrace_from_message(json_data))
     issue_id = result['key']
     update_issue_with_attachments(json_data, issue_id)
     return 'Jira issue added: {}'.format(issue_id), 201, {}
@@ -337,8 +357,12 @@ def create_details_string_from_json(json_data):
         del dict_without_attachments['logs']
 
     output = ''
+    excluded_fields = ['title', "description", "labels"]
+    for custom_field_id, data_field_name in CUSTOM_FIELD_MAPPINGS.items():
+        excluded_fields.append(data_field_name)
+
     for key, value in dict_without_attachments.items():
-        if key not in ['title', "description", "labels"]:
+        if key not in excluded_fields:
             output += '  {}: {}\n'.format(key, value)
 
     return output
@@ -370,7 +394,7 @@ def get_stacktrace_from_message(json_data):
     return result
 
 
-def add_to_jira(summary, details, labels, stacktrace, description):
+def add_to_jira(summary, details, labels, stacktrace, description=None, custom_fields=None):
     summary = sanitize_jql_summary(summary)
     if description is None:
         title = '{}: {}'.format(JIRA_ISSUE_TITLE, summary)
@@ -381,6 +405,11 @@ def add_to_jira(summary, details, labels, stacktrace, description):
 
     issue = {'project': {'key': '{}'.format(JIRA_PROJECT)}, 'summary': title, 'description': description,
              'issuetype': {'name': 'Bevinding'}, 'labels': labels}
+
+    if custom_fields:
+        for custom_field_id, value in custom_fields.items():
+            issue[custom_field_id] = value
+
     fields = {'fields': issue}
 
     log.info('Sending:\n{}'.format(json.dumps(fields)))
