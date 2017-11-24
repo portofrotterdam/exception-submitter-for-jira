@@ -1,6 +1,7 @@
 import configparser
 import logging
 import os
+import json
 
 __author__ = 'Miel Donkers <miel.donkers@gmail.com>'
 
@@ -33,3 +34,26 @@ if JIRA_PROJECT is None:
 
 if JIRA_ISSUE_TITLE is None:
     JIRA_ISSUE_TITLE = 'Exception'
+
+
+def create_custom_field_mappings():
+    """
+        CUSTOM_FIELD_MAPPINGS maps a custom field id from JIRA to a data field name.
+        * It can be configured at the config file under section [CUSTOM_FIELD_MAPPINGS]
+            For example: customfield_123456: myJsonFieldName
+        * Or as environment variable 'CUSTOM_FIELD_MAPPINGS' as json data
+            For example: {"customfield_123456": "myJsonFieldName", "customfield_654321": "myOtherJsonFieldName"}
+        This method converts them to a dictionary to be used later to assign the data to the custom field(s)
+    """
+    if config.has_section('CUSTOM_FIELD_MAPPINGS'):
+        options = config.options('CUSTOM_FIELD_MAPPINGS')
+        custom_field_mappings = {}
+        for option in options:
+            custom_field_mappings[option] = config.get('CUSTOM_FIELD_MAPPINGS', option)
+
+        return custom_field_mappings
+    else:
+        return json.loads(os.getenv('CUSTOM_FIELD_MAPPINGS', "{}"))
+
+
+CUSTOM_FIELD_MAPPINGS = create_custom_field_mappings()
