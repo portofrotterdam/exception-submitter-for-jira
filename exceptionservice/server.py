@@ -179,16 +179,22 @@ def update_issue_with_user_details(json_data, issue_id, match_ratio):
         body_content = {'body': '*This issue has occurred again (match ratio {}%)*\r\n'
                                 '----\r\n'
                                 'User: {}\r\n'
-                                'Host: {}\r\n'
+                                'Launched from host: {}\r\n'
                                 'HaMIS version: {}\r\n'
-                                'Java Version: {}\r\n\r\n'
+                                'HaMIS environment: {}\r\n'
+                                'HaMIS roles: {}\r\n'
+                                'Java version: {}\r\n'
+                                'OS: {}\r\n\r\n'
                                 '[^{}_stacktrace.txt]\r\n'
                                 '[^{}_screenshot.jpg]\r\n'
                                 '[^{}_logfiles.zip]'.format(int(round(match_ratio * 100)),
                                                             username,
                                                             json_data['jnlpHost'],
                                                             json_data['hamisVersion'],
+                                                            json_data['hamisApplicationTypeProfileName'],
+                                                            json_data['hamisRoles'],
                                                             json_data['javaVersion'],
+                                                            json_data['osType'],
                                                             username,
                                                             username,
                                                             username)
