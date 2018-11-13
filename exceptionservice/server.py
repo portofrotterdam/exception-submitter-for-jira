@@ -63,7 +63,7 @@ def receive_exception():
 
 
 def show_all_open_issues():
-    query = {'jql': 'project={}&status in (Nieuw, "To do", Doing, "On hold")&issuetype=Bevinding'.format(JIRA_PROJECT),
+    query = {'jql': 'project={}&status in (New, "To do", Doing, "On hold")&issuetype=Bevinding'.format(JIRA_PROJECT),
              'fields': _JIRA_FIELDS}
     resp = requests.post(_JIRA_URI_SEARCH,
                          json=query,
