@@ -63,7 +63,7 @@ def receive_exception():
 
 
 def show_all_open_issues():
-    query = {'jql': 'project={}&status in (Open,"In Progress",Reopened)&issuetype=Bevinding'.format(JIRA_PROJECT),
+    query = {'jql': 'project={}&status in (Nieuw, "To do", Doing, "On hold")&issuetype=Bevinding'.format(JIRA_PROJECT),
              'fields': _JIRA_FIELDS}
     resp = requests.post(_JIRA_URI_SEARCH,
                          json=query,
@@ -211,7 +211,7 @@ def update_issue_with_user_details(json_data, issue_id, match_ratio):
 
 
 def is_issue_closed(status):
-    return status.lower() == 'closed' or status.lower() == 'resolved'
+    return status.lower() == 'in production'
 
 
 def calculate_issue_occurrence_count(existing_count):
